@@ -407,17 +407,16 @@ internal class Preview: PreviewWrapper {
                         let row = DiskRow(drive)
                         let isFirst = self.disks.numberOfRows == 0
                         if !self.diskRows.isEmpty {
-                            let sep = NSView()
-                            sep.wantsLayer = true
-                            sep.layer?.backgroundColor = NSColor.separatorColor.withAlphaComponent(0.05).cgColor
-                            sep.heightAnchor.constraint(equalToConstant: 1).isActive = true
-                            let sepCells = (0..<max(1, self.disks.numberOfColumns)).map { _ -> NSView in NSView() }
-                            var cells: [NSView] = sepCells
-                            cells[0] = sep
-                            let sepRow = self.disks.addRow(with: cells)
-                            if self.disks.numberOfColumns > 1 {
-                                sepRow.mergeCells(in: NSRange(location: 0, length: self.disks.numberOfColumns))
+                            // NSGridView throws when removing a row with merged cells, so every cell gets its own line
+                            let cells = (0..<max(1, self.disks.numberOfColumns)).map { _ -> NSView in
+                                let sep = NSView()
+                                sep.wantsLayer = true
+                                sep.layer?.backgroundColor = NSColor.separatorColor.withAlphaComponent(0.05).cgColor
+                                sep.heightAnchor.constraint(equalToConstant: 1).isActive = true
+                                return sep
                             }
+                            let sepRow = self.disks.addRow(with: cells)
+                            (0..<sepRow.numberOfCells).forEach { sepRow.cell(at: $0).xPlacement = .fill }
                             row.separatorRow = sepRow
                         }
                         row.gridRow = self.disks.addRow(with: row.cells)
