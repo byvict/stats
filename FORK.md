@@ -36,7 +36,7 @@ Resolve each conflict, then `git rebase --continue`. For a large resolution, pus
 
 macOS arm64 runners are sometimes short on capacity. The job then waits about 15 minutes and ends with "The job was not acquired by Runner of type hosted even after multiple attempts". This happened to both attempts of the first fork-sync run on 2026-10-20, because both used `macos-latest`.
 
-The `build` job runs on `macos-latest` with `continue-on-error: true`. When it does not finish, `build-retry` runs the same steps on `macos-15-intel`, a separate x86_64 pool. Release builds are universal, so either runner produces an app for Apple Silicon. The shared build step switches to the newest Xcode 26 when the runner's default Xcode is older, matching the Xcode 26.3 upstream pinned until 2026-10-18.
+The `build` job runs on `macos-latest` with `continue-on-error: true`. When it does not finish, `build-retry` runs the same steps on `macos-26-intel`, a separate x86_64 pool. Release builds are universal, so either runner produces an app for Apple Silicon. Both runners use their default Xcode, as upstream does. Avoid `macos-15-intel`: its newest Xcode is 26.3, and upstream code no longer compiles with it (`CWPHYMode` has no member `mode11be`).
 
 When both attempts fail, use "Re-run failed jobs" on the run page, or wait for the next Monday. That run sees there is no artifact for the current `custom` commit and builds it. `fork-build` can also be started by hand with either runner.
 
