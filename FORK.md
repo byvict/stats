@@ -34,9 +34,9 @@ Resolve each conflict, then `git rebase --continue`. For a large resolution, pus
 
 ## Runner capacity
 
-macOS arm64 runners are sometimes short on capacity. The job then waits about 15 minutes and ends with "The job was not acquired by Runner of type hosted even after multiple attempts". This happened to both attempts of the first fork-sync run on 2026-10-20, because both used `macos-latest`.
+macOS arm64 runners are often short on capacity. The job then waits about 15 minutes and ends with "The job was not acquired by Runner of type hosted even after multiple attempts". On 2026-10-20 this happened to all three `macos-latest` jobs that fork-sync started, while both `macos-26-intel` jobs got a runner within seconds and built in 5 to 10 minutes. A job that is never acquired marks the whole run failed, even with `continue-on-error: true` and even when a later job builds the app.
 
-The `build` job runs on `macos-latest` with `continue-on-error: true`. When it does not finish, `build-retry` runs the same steps on `macos-26-intel`, a separate x86_64 pool. Release builds are universal, so either runner produces an app for Apple Silicon. Both runners use their default Xcode, as upstream does. Avoid `macos-15-intel`: its newest Xcode is 26.3, and upstream code no longer compiles with it (`CWPHYMode` has no member `mode11be`).
+So the `build` job runs on `macos-26-intel`, and `build-retry` runs the same steps on `macos-latest` only when `build` did not finish. Release builds are universal (`x86_64 arm64`), so the Intel runner produces an app for Apple Silicon. Both runners use their default Xcode, as upstream does. Avoid `macos-15-intel`. Its newest Xcode is 26.3, and upstream code no longer compiles with it (`CWPHYMode` has no member `mode11be`). Apple's macOS 26 is the last release for Intel Macs, so expect GitHub to retire `macos-26-intel` some day. When that happens, switch `build` to `macos-latest` and drop `build-retry`.
 
 When both attempts fail, use "Re-run failed jobs" on the run page, or wait for the next Monday. That run sees there is no artifact for the current `custom` commit and builds it. `fork-build` can also be started by hand with either runner.
 
