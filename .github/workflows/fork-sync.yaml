@@ -1,0 +1,98 @@
+name: fork-sync
+
+on:
+  schedule:
+    - cron: '17 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-sync
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      sha: ${{ steps.rebase.outputs.sha }}
+      build: ${{ steps.artifact.outputs.missing }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: custom
+          fetch-depth: 0
+          ssh-key: ${{ secrets.FORK_SYNC_SSH_KEY }}
+
+      - name: Rebase custom onto exelban/stats master
+        id: rebase
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch --no-tags https://github.com/exelban/stats.git master
+          upstream=$(git rev-parse FETCH_HEAD)
+          before=$(git rev-parse HEAD)
+
+          if ! git rebase "$upstream"; then
+            conflicts=$(git diff --name-only --diff-filter=U | paste -sd ' ' -)
+            git rebase --abort
+            echo "::error title=Rebase conflict::Our commits no longer apply on exelban/stats ${upstream::8}. Conflicting files: $conflicts. Fix locally: git fetch upstream && git rebase upstream/master custom && git push --force-with-lease origin custom"
+            exit 1
+          fi
+
+          after=$(git rev-parse HEAD)
+          echo "sha=$after" >> "$GITHUB_OUTPUT"
+          if [ "$after" = "$before" ]; then
+            echo "custom is already on top of exelban/stats ${upstream::8}" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if ! git push --force-with-lease="custom:$before" origin HEAD:custom; then
+            echo "::error title=Push rejected::If git says the token lacks the workflows permission, upstream changed .github/workflows and the FORK_SYNC_SSH_KEY deploy key is missing. See FORK.md."
+            exit 1
+          fi
+          echo "custom rebased onto exelban/stats ${upstream::8}: ${before::8} -> ${after::8}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Look for an existing build of this commit
+        id: artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.rebase.outputs.sha }}
+        run: |
+          found=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=Stats-$SHA" --jq '[.artifacts[] | select(.expired | not)] | length')
+          if [ "$found" = 0 ]; then missing=true; else missing=false; fi
+          echo "missing=$missing" >> "$GITHUB_OUTPUT"
+          echo "artifact Stats-$SHA missing: $missing" >> "$GITHUB_STEP_SUMMARY"
+
+  # macOS arm64 runners sometimes never pick the job up ("not acquired by Runner of type hosted").
+  # The first attempt may fail without failing the run, and build-retry runs only when it did not finish.
+  build:
+    needs: sync
+    if: needs.sync.outputs.build == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    outputs:
+      done: ${{ steps.done.outputs.done }}
+
+    steps: &build-steps
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.sync.outputs.sha }}
+      - uses: ./.github/actions/build-app
+        with:
+          artifact-name: Stats-${{ needs.sync.outputs.sha }}
+      - id: done
+        run: echo "done=true" >> "$GITHUB_OUTPUT"
+
+  build-retry:
+    needs: [sync, build]
+    if: ${{ !cancelled() && needs.sync.outputs.build == 'true' && needs.build.outputs.done != 'true' }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps: *build-steps
