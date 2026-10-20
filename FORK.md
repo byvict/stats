@@ -8,14 +8,7 @@ This fork carries a few commits on top of [exelban/stats](https://github.com/exe
 - `master` is the fork's original copy of upstream. Nothing uses it and nothing rewrites it.
 - Any other branch is a work branch. Start it from `custom`. The `fork-build` workflow builds every push to it.
 
-`custom` is the default branch because GitHub runs scheduled workflows only from the default branch. Our commits stay a short linear series, `git log upstream/master..custom`, which keeps them easy to review and to replay on each upstream release.
-
-Our commits, oldest first:
-
-1. `fix: fixed a crash in the Disk preview when a disk is unmounted`
-2. `feat: added an option to show several disks in the Disk mini widget`
-3. `ci: added fork workflows that rebase onto upstream weekly and upload an ad-hoc signed app`
-4. `docs: added fork notes and the install how-to`
+`custom` is the default branch because GitHub runs scheduled workflows only from the default branch. Our commits stay a short linear series on top of upstream, listed by `git log upstream/master..custom`, which keeps them easy to review and to replay on each upstream release.
 
 ## Weekly sync
 
@@ -26,6 +19,8 @@ Our commits, oldest first:
 3. It builds and uploads `Stats-<commit sha>` when no unexpired artifact with that name exists yet. A run with nothing new upstream ends green without a build. A run after a failed build builds again. Artifacts are kept for 90 days.
 
 The build itself lives in `.github/actions/build-app`, shared with `fork-build`. It archives without a signing identity, ad-hoc signs the app, and zips it with `ditto`.
+
+The install how-to downloads the artifact of the current `custom` commit. After pushing to `custom` by hand, run fork-sync once so that commit gets a build.
 
 ### Fixing a rebase conflict
 
@@ -45,9 +40,9 @@ macOS arm64 runners are sometimes short on capacity, and a job can fail with "Th
 
 The default `GITHUB_TOKEN` cannot push commits that change files under `.github/workflows`, and no `permissions:` key grants that. Upstream edits its workflows often (six commits between 2026-09-28 and 2026-10-18). When that happens, a push with `GITHUB_TOKEN` is rejected and the run fails with a "Push rejected" annotation.
 
-fork-sync therefore checks out with the `FORK_SYNC_SSH_KEY` secret when it exists. That secret holds the private half of a deploy key with write access to this repository only. A push made with a deploy key also triggers the Linter and i18n workflows on `custom`, which is harmless. Without the secret, fork-sync falls back to `GITHUB_TOKEN`, which works for every week in which upstream did not touch its workflows.
+fork-sync therefore checks out with the `FORK_SYNC_SSH_KEY` secret when it exists. That secret holds the private half of a deploy key with write access to this repository only. It was added on 2026-10-20. Unlike a `GITHUB_TOKEN` push, a deploy-key push triggers upstream's own push workflows on `custom` (Linter, i18n check and SMC tests, each only when its paths changed). A failure there points at upstream code, not at the fork. Without the secret, fork-sync falls back to `GITHUB_TOKEN`, which works for every week in which upstream did not touch its workflows.
 
-To create the key (the owner runs this, or approves an agent running it):
+To replace the key, delete the old one and run the following. The owner runs it, or approves an agent running it.
 
 ```bash
 ssh-keygen -t ed25519 -N '' -C fork-sync -f /tmp/fork-sync
