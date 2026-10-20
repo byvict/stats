@@ -1,0 +1,33 @@
+name: fork-build
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v7
+      - run: xcodebuild -scheme Stats -destination 'platform=macOS' -configuration Release archive -archivePath build/Stats.xcarchive CODE_SIGNING_ALLOWED=NO
+      - name: Ad-hoc sign and zip
+        run: |
+          app=build/Stats.xcarchive/Products/Applications/Stats.app
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict "$app"
+          ditto -c -k --keepParent "$app" build/Stats.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Stats-${{ github.sha }}
+          path: build/Stats.zip
+          retention-days: 30
