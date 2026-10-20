@@ -1,0 +1,26 @@
+name: Build Stats
+description: Archives Stats without a signing identity, ad-hoc signs it, zips it and uploads it as an artifact
+
+inputs:
+  artifact-name:
+    description: Name of the uploaded artifact
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: xcodebuild -scheme Stats -destination 'platform=macOS' -configuration Release archive -archivePath build/Stats.xcarchive CODE_SIGNING_ALLOWED=NO
+    - name: Ad-hoc sign and zip
+      shell: bash
+      run: |
+        app=build/Stats.xcarchive/Products/Applications/Stats.app
+        codesign --force --deep --sign - "$app"
+        codesign --verify --deep --strict "$app"
+        ditto -c -k --keepParent "$app" build/Stats.zip
+    - uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: build/Stats.zip
+        retention-days: 90
+        overwrite: true
