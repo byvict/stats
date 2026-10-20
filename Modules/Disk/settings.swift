@@ -49,11 +49,14 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
     public var setInterval: ((_ value: Int) -> Void) = {_ in }
     public var setSMARTInterval: ((_ value: Int) -> Void) = {_ in }
     public var callbackWhenUpdateNumberOfProcesses: (() -> Void) = {}
+    public var miniCallback: (() -> Void) = {}
     
     private var selectedDisk: String
     private var button: NSPopUpButton?
     
     private var list: [String] = []
+    private var miniList: [drive] = []
+    private var miniSection: PreferencesSection?
     
     private let textWidgetHelpPanel: HelpHUD = HelpHUD(textWidgetHelp)
     
@@ -113,6 +116,13 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
             ))
         ]))
         
+        self.miniSection = nil
+        if widgets.contains(where: { $0 == .mini }) {
+            let section = self.miniSectionView()
+            self.addArrangedSubview(section)
+            self.miniSection = section
+        }
+        
         if widgets.contains(where: { $0 == .speed }) {
             self.addArrangedSubview(PreferencesSection([
                 PreferencesRow(localizedString("Base"), component: selectView(
@@ -167,7 +177,29 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
                     self.button?.selectItem(withTitle: self.selectedDisk)
                 }
             }
+            self.setMiniList(list.array)
         })
+    }
+    
+    private func setMiniList(_ list: [drive]) {
+        guard list.map({ [$0.persistentID, $0.mediaName] }) != self.miniList.map({ [$0.persistentID, $0.mediaName] }) else { return }
+        self.miniList = list
+        
+        guard let old = self.miniSection, let idx = self.arrangedSubviews.firstIndex(of: old) else { return }
+        let section = self.miniSectionView()
+        old.removeFromSuperview()
+        self.insertArrangedSubview(section, at: idx)
+        self.miniSection = section
+    }
+    
+    private func miniSectionView() -> PreferencesSection {
+        let section = PreferencesSection(title: localizedString("Mini widget"))
+        self.miniList.forEach { (d: drive) in
+            let toggle = switchView(action: #selector(self.toggleMiniDisk), state: d.miniState)
+            toggle.identifier = NSUserInterfaceItemIdentifier(d.persistentID)
+            section.add(PreferencesRow(d.mediaName, component: toggle))
+        }
+        return section
     }
     
     private func inputField(id: String, value: String, placeholder: String) -> NSView {
@@ -199,6 +231,11 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
         self.selectedDisk = item.title
         Store.shared.set(key: "\(self.title)_disk", value: item.title)
         self.selectedDiskHandler(item.title)
+    }
+    @objc private func toggleMiniDisk(_ sender: NSControl) {
+        guard let id = sender.identifier?.rawValue else { return }
+        Store.shared.set(key: "\(self.title)_\(id)_mini", value: controlState(sender))
+        self.miniCallback()
     }
     @objc private func toggleRemovable(_ sender: NSControl) {
         self.removableState = controlState(sender)

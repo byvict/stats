@@ -18,7 +18,7 @@ public class Mini: WidgetWrapper {
     
     private var colors: [SColor] = SColor.allCases
     
-    private var _value: Double = 0
+    private var _values: [Double] = [0]
     private var _pressureLevel: RAMPressure = .normal
     private var _colorZones: colorZones = (0.6, 0.8)
     private var _suffix: String = "%"
@@ -46,7 +46,7 @@ public class Mini: WidgetWrapper {
                 if let previewConfig = config!["Preview"] as? NSDictionary {
                     configuration = previewConfig
                     if let value = configuration["Value"] as? String {
-                        self._value = Double(value) ?? 0
+                        self._values = [Double(value) ?? 0]
                     }
                 }
             }
@@ -92,13 +92,13 @@ public class Mini: WidgetWrapper {
     public override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         
-        var value: Double = 0
+        var values: [Double] = []
         var pressureLevel: RAMPressure = .normal
         var colorZones: colorZones = (0.6, 0.8)
         var label: String = ""
         var suffix: String = ""
         self.queue.sync {
-            value = self._value
+            values = self._values
             pressureLevel = self._pressureLevel
             colorZones = self._colorZones
             label = self._label
@@ -110,22 +110,7 @@ public class Mini: WidgetWrapper {
         let style = NSMutableParagraphStyle()
         style.alignment = self.labelState ? self.alignment : .center
         
-        if self.labelState {
-            let style = NSMutableParagraphStyle()
-            style.alignment = self.alignment
-            
-            let stringAttributes = [
-                NSAttributedString.Key.font: NSFont.systemFont(ofSize: 7, weight: .light),
-                NSAttributedString.Key.foregroundColor: isDarkMode ? NSColor.white : NSColor.textColor,
-                NSAttributedString.Key.paragraphStyle: style
-            ]
-            let rect = CGRect(x: origin.x, y: 12, width: self.width - (Constants.Widget.margin.x*2), height: 7)
-            let str = NSAttributedString.init(string: label, attributes: stringAttributes)
-            str.draw(with: rect)
-            
-            origin.y = 1
-        }
-        
+        let value: Double = values.max() ?? 0
         var color: NSColor = .controlAccentColor
         switch self.colorState {
         case .systemAccent: color = .controlAccentColor
@@ -140,17 +125,40 @@ public class Mini: WidgetWrapper {
             NSAttributedString.Key.foregroundColor: color,
             NSAttributedString.Key.paragraphStyle: style
         ]
-        let rect = CGRect(x: origin.x, y: origin.y, width: self.width - (Constants.Widget.margin.x*2), height: valueSize+1)
-        let str = NSAttributedString.init(string: "\(Int(value.rounded(toPlaces: 2) * 100))\(suffix)", attributes: stringAttributes)
+        let text = values.map { "\(Int($0.rounded(toPlaces: 2) * 100))\(suffix)" }.joined(separator: "/")
+        let str = NSAttributedString.init(string: text, attributes: stringAttributes)
+        let width = values.count > 1 ? max(self.width, str.size().width.rounded(.up) + (Constants.Widget.margin.x*2)) : self.width
+        
+        if self.labelState {
+            let style = NSMutableParagraphStyle()
+            style.alignment = self.alignment
+            
+            let stringAttributes = [
+                NSAttributedString.Key.font: NSFont.systemFont(ofSize: 7, weight: .light),
+                NSAttributedString.Key.foregroundColor: isDarkMode ? NSColor.white : NSColor.textColor,
+                NSAttributedString.Key.paragraphStyle: style
+            ]
+            let rect = CGRect(x: origin.x, y: 12, width: width - (Constants.Widget.margin.x*2), height: 7)
+            let str = NSAttributedString.init(string: label, attributes: stringAttributes)
+            str.draw(with: rect)
+            
+            origin.y = 1
+        }
+        
+        let rect = CGRect(x: origin.x, y: origin.y, width: width - (Constants.Widget.margin.x*2), height: valueSize+1)
         str.draw(with: rect)
         
         self.setWidth(width)
     }
     
     public func setValue(_ newValue: Double) {
+        self.setValues([newValue])
+    }
+    
+    public func setValues(_ newValues: [Double]) {
         let updated = self.queue.sync { () -> Bool in
-            guard self._value != newValue else { return false }
-            self._value = newValue
+            guard self._values != newValues else { return false }
+            self._values = newValues
             return true
         }
         guard updated else { return }
