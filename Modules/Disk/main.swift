@@ -81,6 +81,16 @@ public struct drive: Codable {
     public var popupState: Bool {
         Store.shared.bool(key: "Disk_\(self.uuid)_popup", defaultValue: true)
     }
+
+    // the root volume is a sealed system snapshot whose UUID changes on every macOS update
+    public var persistentID: String {
+        self.root ? "root" : self.uuid
+    }
+
+    public var miniState: Bool {
+        let selected = Store.shared.string(key: "Disk_disk", defaultValue: "")
+        return Store.shared.bool(key: "Disk_\(self.persistentID)_mini", defaultValue: selected.isEmpty ? self.root : self.mediaName == selected)
+    }
     
     public func remote() -> String {
         return "\(self.uuid),\(self.size),\(self.size-self.free),\(self.free),\(self.activity.read),\(self.activity.write)"
@@ -275,6 +285,11 @@ public class Disk: Module {
             self?.capacityReader?.read()
             self?.smartReader?.read()
         }
+        self.settingsView.miniCallback = { [weak self] in
+            if let value = self?.capacityReader?.value {
+                self?.capacityCallback(value)
+            }
+        }
         self.settingsView.setInterval = { [weak self] value in
             self?.capacityReader?.setInterval(value)
         }
@@ -310,7 +325,9 @@ public class Disk: Module {
         
         self.menuBar.widgets.filter{ $0.isActive }.forEach { (w: SWidget) in
             switch w.item {
-            case let widget as Mini: widget.setValue(d.percentage)
+            case let widget as Mini:
+                let disks = value.filter(where: { $0.miniState })
+                widget.setValues(disks.isEmpty ? [d.percentage] : disks.map { $0.percentage })
             case let widget as BarChart: widget.setValue([[ColorValue(d.percentage)]])
             case let widget as MemoryWidget:
                 widget.setValue((DiskSize(d.free).getReadableMemory(), DiskSize(d.size - d.free).getReadableMemory()), usedPercentage: d.percentage)
