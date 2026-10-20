@@ -93,7 +93,7 @@ jobs:
   build-retry:
     needs: [sync, build]
     if: ${{ !cancelled() && needs.sync.outputs.build == 'true' && needs.build.outputs.done != 'true' }}
-    runs-on: macos-15-intel
+    runs-on: macos-26-intel
     timeout-minutes: 45
 
     steps: *build-steps
