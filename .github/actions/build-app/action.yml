@@ -9,6 +9,13 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Select Xcode 26 or newer
+      shell: bash
+      run: |
+        if [ "$(xcodebuild -version | awk 'NR == 1 { print int($2) }')" -lt 26 ]; then
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | grep -iv beta | sort -V | tail -1)"
+        fi
+        xcodebuild -version
     - shell: bash
       run: xcodebuild -scheme Stats -destination 'platform=macOS' -configuration Release archive -archivePath build/Stats.xcarchive CODE_SIGNING_ALLOWED=NO
     - name: Ad-hoc sign and zip
