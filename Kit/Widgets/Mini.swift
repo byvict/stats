@@ -125,7 +125,7 @@ public class Mini: WidgetWrapper {
             NSAttributedString.Key.foregroundColor: color,
             NSAttributedString.Key.paragraphStyle: style
         ]
-        let text = values.map { "\(Int($0.rounded(toPlaces: 2) * 100))\(suffix)" }.joined(separator: "/")
+        let text = values.map { "\(Int($0.rounded(toPlaces: 2) * 100))" }.joined(separator: "/") + suffix
         let str = NSAttributedString.init(string: text, attributes: stringAttributes)
         let width = values.count > 1 ? max(self.width, str.size().width.rounded(.up) + (Constants.Widget.margin.x*2)) : self.width
         
